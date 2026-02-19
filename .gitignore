@@ -16,6 +16,7 @@ Makefile
 ./build/*.lib
 ./build/*.so
 ./build/*.dylib
+./build/*
 
 # IDE / editor settings
 .vscode/
