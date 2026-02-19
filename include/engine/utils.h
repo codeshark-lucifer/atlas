@@ -12,6 +12,7 @@
 
 #include <new>       // for placement new
 #include <utility>   // for std::forward
+#include <vector>
 
 // ============================
 // Basic typedefs
@@ -35,6 +36,9 @@ typedef Vec4 vec4;
 typedef Mat3 mat3;
 typedef Mat4 mat4;
 typedef Quat quat;
+
+template<typename T>
+using Array = std::vector<T>; 
 
 // ============================
 // Logging & Assert Macro

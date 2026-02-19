@@ -17,6 +17,8 @@ struct Input_
     i32 prevMouseX = 0;
     i32 prevMouseY = 0;
     i32 scrollY = 0;
+
+    ivec2 screen;
 };
 
 typedef HWND Window;
@@ -40,7 +42,7 @@ Window CreateWindowPlatform(
 
 void PollEvent(Event *event);
 bool ShouldClose();
-void DestoryPlatform();
+void DestroyPlatform();
 
 void SetTitleBarColor(COLORREF textColor, COLORREF backgroundColor);
 

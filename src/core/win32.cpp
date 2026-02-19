@@ -42,6 +42,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GetClientRect(hwnd, &clientRect);
         i32 width = clientRect.right - clientRect.left;
         i32 height = clientRect.bottom - clientRect.top;
+        input->screen = ivec2(width, height);
 
         glViewport(0, 0, width, height);
         return 0;
@@ -113,6 +114,7 @@ bool InitPlatform()
 // ---------------- Create Window & OpenGL Context ----------------
 Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height)
 {
+    input->screen = ivec2(width, height);
     HINSTANCE hInstance = GetModuleHandleA(NULL);
 
     // Register window class
@@ -120,6 +122,7 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     RegisterClassA(&wc);
 
     // Create window
@@ -210,16 +213,20 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
 // ---------------- Event Handling ----------------
 void PollEvent(Event *event)
 {
+    glViewport(0, 0, input->screen.x, input->screen.y);
+    
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     event->deltaTime = (float)(now.QuadPart - lastCounter.QuadPart) / frequency.QuadPart;
     lastCounter = now;
-    
-    for(int i=0;i<256;i++) { 
-        input->keyPressed[i] = false; 
-        input->keyReleased[i] = false; 
+
+    for (int i = 0; i < 256; i++)
+    {
+        input->keyPressed[i] = false;
+        input->keyReleased[i] = false;
     }
-    for(int i=0;i<5;i++){
+    for (int i = 0; i < 5; i++)
+    {
         input->mousePressed[i] = false;
         input->mouseReleased[i] = false;
     }
@@ -252,7 +259,7 @@ void SwapBuffersWindow()
 }
 
 // ---------------- Destroy Platform ----------------
-void DestoryPlatform()
+void DestroyPlatform()
 {
     running = false;
 
