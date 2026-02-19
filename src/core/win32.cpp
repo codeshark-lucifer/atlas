@@ -4,13 +4,21 @@
 #include <GL/wglext.h>
 
 #include <dwmapi.h>
+#include <windowsx.h>
 
 bool running = false;
 
 Window window = NULL;
 HDC hdc = NULL;
-HGLRC oldContext = NULL;      // temporary legacy context
-HGLRC modernContext = NULL;   // actual OpenGL 4.6 core context
+HGLRC oldContext = NULL;    // temporary legacy context
+HGLRC modernContext = NULL; // actual OpenGL 4.6 core context
+
+LARGE_INTEGER frequency;
+LARGE_INTEGER lastCounter;
+
+BumpAllocator persistentStorage;
+
+Input input = nullptr;
 
 const str CLASS_NAME = "AtlasEngineClass";
 
@@ -22,16 +30,67 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     switch (uMsg)
     {
     case WM_DESTROY:
+    {
         PostQuitMessage(0);
         return 0;
+    }
 
     case WM_SIZE:
     {
         // Resize viewport to actual client area
         RECT clientRect;
         GetClientRect(hwnd, &clientRect);
-        glViewport(0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+        i32 width = clientRect.right - clientRect.left;
+        i32 height = clientRect.bottom - clientRect.top;
+
+        glViewport(0, 0, width, height);
+        return 0;
     }
+
+    case WM_KEYDOWN:
+        // lParam bit 30: previous state, bit 31: transition
+        if (!(lParam & 0x40000000)) // key wasn't down before
+            input->keyPressed[wParam] = true;
+        input->keyDown[wParam] = true;
+        return 0;
+
+    case WM_KEYUP:
+        input->keyDown[wParam] = false;
+        input->keyReleased[wParam] = true;
+        return 0;
+
+    case WM_LBUTTONDOWN:
+        input->mousePressed[0] = true;
+        input->mouseDown[0] = true;
+        return 0;
+    case WM_LBUTTONUP:
+        input->mouseDown[0] = false;
+        input->mouseReleased[0] = true;
+        return 0;
+    case WM_RBUTTONDOWN:
+        input->mousePressed[1] = true;
+        input->mouseDown[1] = true;
+        return 0;
+    case WM_RBUTTONUP:
+        input->mouseDown[1] = false;
+        input->mouseReleased[1] = true;
+        return 0;
+    case WM_MBUTTONDOWN:
+        input->mousePressed[2] = true;
+        input->mouseDown[2] = true;
+        return 0;
+    case WM_MBUTTONUP:
+        input->mouseDown[2] = false;
+        input->mouseReleased[2] = true;
+        return 0;
+
+    case WM_MOUSEMOVE:
+        input->mouseX = GET_X_LPARAM(lParam);
+        input->mouseY = GET_Y_LPARAM(lParam);
+        return 0;
+
+    case WM_MOUSEWHEEL:
+        input->scrollY = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
         return 0;
 
     default:
@@ -42,11 +101,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 // ---------------- Platform Init ----------------
 bool InitPlatform()
 {
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&lastCounter);
+
+    persistentStorage = MakeAllocator(MB(100));
+    input = BumpAlloc<Input_>(&persistentStorage);
+
     return true;
 }
 
 // ---------------- Create Window & OpenGL Context ----------------
-Window CreateWindowPlatform(const str& name, const i32& width, const i32& height)
+Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height)
 {
     HINSTANCE hInstance = GetModuleHandleA(NULL);
 
@@ -111,8 +176,7 @@ Window CreateWindowPlatform(const str& name, const i32& width, const i32& height
         WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
         WGL_CONTEXT_MINOR_VERSION_ARB, 6,
         WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-        0
-    };
+        0};
 
     modernContext = wglCreateContextAttribsARB(hdc, 0, attribs);
     if (!modernContext)
@@ -144,15 +208,35 @@ Window CreateWindowPlatform(const str& name, const i32& width, const i32& height
 }
 
 // ---------------- Event Handling ----------------
-void PollEvent(Event* event)
+void PollEvent(Event *event)
 {
-    while (PeekMessage(&event->msg, 0, 0, 0, PM_REMOVE))
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    event->deltaTime = (float)(now.QuadPart - lastCounter.QuadPart) / frequency.QuadPart;
+    lastCounter = now;
+    
+    for(int i=0;i<256;i++) { 
+        input->keyPressed[i] = false; 
+        input->keyReleased[i] = false; 
+    }
+    for(int i=0;i<5;i++){
+        input->mousePressed[i] = false;
+        input->mouseReleased[i] = false;
+    }
+    input->prevMouseX = input->mouseX;
+    input->prevMouseY = input->mouseY;
+    input->scrollY = 0;
+
+    MSG msg;
+    while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
     {
-        if (event->msg.message == WM_QUIT)
+        if (msg.message == WM_QUIT)
             running = false;
 
-        TranslateMessage(&event->msg);
-        DispatchMessage(&event->msg);
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+
+        event->msg = msg;
     }
 }
 

@@ -11,6 +11,7 @@ add_executable(app
     src/main.cpp
     src/core/helper.cpp
     src/core/win32.cpp
+    src/core/input.cpp
 )
 
 target_include_directories(app PRIVATE 

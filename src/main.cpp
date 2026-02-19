@@ -1,4 +1,5 @@
 #include <platform/win32.h>
+#include <engine/input.h>
 #include <glad/glad.h>
 
 u32 CompileShader(const char* source, i32 type) {
@@ -75,6 +76,8 @@ int main() {
         glUseProgram(shader);
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        if(IsKeyPressed(KEY_ESCAPE)) break;
 
         SwapBuffersWindow();
     }

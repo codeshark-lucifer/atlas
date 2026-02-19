@@ -44,3 +44,33 @@ int write_file(str path, const char* buffer, u64 size) {
     fclose(f);
     return 1;
 }
+
+
+BumpAllocator MakeAllocator(size_t size)
+{
+    BumpAllocator alloc{};
+    alloc.memory = (char*)malloc(size);
+    alloc.capacity = size;
+    alloc.used = 0;
+    return alloc;
+}
+
+inline size_t AlignForward(size_t ptr, size_t align)
+{
+    size_t mod = ptr & (align - 1);
+    if (mod) ptr += (align - mod);
+    return ptr;
+}
+
+void* BumpAllocAligned(BumpAllocator* alloc, size_t size, size_t align)
+{
+    size_t current = (size_t)alloc->memory + alloc->used;
+    size_t aligned = AlignForward(current, align);
+    size_t newUsed = aligned - (size_t)alloc->memory + size;
+
+    if (newUsed > alloc->capacity)
+        return nullptr;
+
+    alloc->used = newUsed;
+    return (void*)aligned;
+}
