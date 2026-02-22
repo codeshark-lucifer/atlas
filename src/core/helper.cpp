@@ -2,9 +2,6 @@
 #include <string.h>
 #include <stdarg.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
-
 void print(const char *fmt, ...)
 {
     va_list args;

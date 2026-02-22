@@ -101,3 +101,5 @@ i32 GetScrollY();
 bool GetMouseButtonDown(i32 button);
 bool GetMouseButtonUp(i32 button);
 
+
+bool IsKeyTypedChar(c32* chr);
