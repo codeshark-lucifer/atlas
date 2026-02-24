@@ -1,9 +1,12 @@
 #version 430 core
 
-layout (location = 0) in vec4 baseColor;
-layout (location = 0) out vec4 fragColor;
+in vec2 UV;
+in vec4 Color;
+
+out vec4 FragColor;
+uniform sampler2D atlasTexture;
 
 void main()
 {
-    fragColor = baseColor;
+    FragColor = Color * texture(atlasTexture, UV); // combine vertex color with texture
 }

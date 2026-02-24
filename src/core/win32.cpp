@@ -1,26 +1,23 @@
 #include <platform/win32.h>
-
 #include <glad/glad.h>
 #include <GL/wglext.h>
-
 #include <dwmapi.h>
 #include <windowsx.h>
 
 bool running = false;
 
-Window window = NULL;
-HDC hdc = NULL;
-HGLRC oldContext = NULL;    // temporary legacy context
-HGLRC modernContext = NULL; // actual OpenGL 4.6 core context
+HWND window = nullptr;   // Window handle
+HDC hdc = nullptr;       // Device context
+HGLRC oldContext = nullptr;
+HGLRC modernContext = nullptr;
 
 LARGE_INTEGER frequency;
 LARGE_INTEGER lastCounter;
 
 BumpAllocator persistentStorage;
-
 Input input = nullptr;
 
-const str CLASS_NAME = "AtlasEngineClass";
+const char* CLASS_NAME = "AtlasEngineClass";
 
 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = nullptr;
 
@@ -29,85 +26,61 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
-    case WM_DESTROY:
-    {
-        PostQuitMessage(0);
-        return 0;
-    }
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
 
-    case WM_SIZE:
-    {
-        // Resize viewport to actual client area
-        RECT clientRect;
-        GetClientRect(hwnd, &clientRect);
-        i32 width = clientRect.right - clientRect.left;
-        i32 height = clientRect.bottom - clientRect.top;
-        input->screen = ivec2(width, height);
-
-        glViewport(0, 0, width, height);
-        return 0;
-    }
-
-    case WM_CHAR:
-    {
-        unsigned int ch = (unsigned int)wParam;
-
-        if (ch >= 32 || ch == '\n' || ch == '\t')
+        case WM_SIZE:
         {
-            input->typedChar = (char)ch;
-            input->charTyped = true;
+            RECT rc;
+            GetClientRect(hwnd, &rc);
+            int width = rc.right - rc.left;
+            int height = rc.bottom - rc.top;
+            input->screen = ivec2(width, height);
+            glViewport(0, 0, width, height);
+            return 0;
         }
-        return 0;
-    }
 
-    case WM_KEYDOWN:
-        // lParam bit 30: previous state, bit 31: transition
-        if (!(lParam & 0x40000000)) // key wasn't down before
-            input->keyPressed[wParam] = true;
-        input->keyDown[wParam] = true;
-        return 0;
+        case WM_CHAR:
+        {
+            unsigned int ch = (unsigned int)wParam;
+            if (ch >= 32 || ch == '\n' || ch == '\t')
+            {
+                input->typedChar = (char)ch;
+                input->charTyped = true;
+            }
+            return 0;
+        }
 
-    case WM_KEYUP:
-        input->keyDown[wParam] = false;
-        input->keyReleased[wParam] = true;
-        return 0;
+        case WM_KEYDOWN:
+            if (!(lParam & 0x40000000)) // first press
+                input->keyPressed[wParam] = true;
+            input->keyDown[wParam] = true;
+            return 0;
 
-    case WM_LBUTTONDOWN:
-        input->mousePressed[0] = true;
-        input->mouseDown[0] = true;
-        return 0;
-    case WM_LBUTTONUP:
-        input->mouseDown[0] = false;
-        input->mouseReleased[0] = true;
-        return 0;
-    case WM_RBUTTONDOWN:
-        input->mousePressed[1] = true;
-        input->mouseDown[1] = true;
-        return 0;
-    case WM_RBUTTONUP:
-        input->mouseDown[1] = false;
-        input->mouseReleased[1] = true;
-        return 0;
-    case WM_MBUTTONDOWN:
-        input->mousePressed[2] = true;
-        input->mouseDown[2] = true;
-        return 0;
-    case WM_MBUTTONUP:
-        input->mouseDown[2] = false;
-        input->mouseReleased[2] = true;
-        return 0;
+        case WM_KEYUP:
+            input->keyDown[wParam] = false;
+            input->keyReleased[wParam] = true;
+            return 0;
 
-    case WM_MOUSEMOVE:
-        input->mouseX = GET_X_LPARAM(lParam);
-        input->mouseY = GET_Y_LPARAM(lParam);
-        return 0;
+        case WM_LBUTTONDOWN: input->mousePressed[0] = input->mouseDown[0] = true; return 0;
+        case WM_LBUTTONUP:   input->mouseDown[0] = false; input->mouseReleased[0] = true; return 0;
+        case WM_RBUTTONDOWN: input->mousePressed[1] = input->mouseDown[1] = true; return 0;
+        case WM_RBUTTONUP:   input->mouseDown[1] = false; input->mouseReleased[1] = true; return 0;
+        case WM_MBUTTONDOWN: input->mousePressed[2] = input->mouseDown[2] = true; return 0;
+        case WM_MBUTTONUP:   input->mouseDown[2] = false; input->mouseReleased[2] = true; return 0;
 
-    case WM_MOUSEWHEEL:
-        input->scrollY = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
-        return 0;
+        case WM_MOUSEMOVE:
+            input->mouseX = GET_X_LPARAM(lParam);
+            input->mouseY = GET_Y_LPARAM(lParam);
+            return 0;
 
-    default:
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        case WM_MOUSEWHEEL:
+            input->scrollY = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
+            return 0;
+
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
 }
 
@@ -119,17 +92,15 @@ bool InitPlatform()
 
     persistentStorage = MakeAllocator(MB(100));
     input = BumpAlloc<Input_>(&persistentStorage);
-
     return true;
 }
 
 // ---------------- Create Window & OpenGL Context ----------------
-Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height)
+Window CreateWindowPlatform(const str& name, const i32& width, const i32& height)
 {
     input->screen = ivec2(width, height);
     HINSTANCE hInstance = GetModuleHandleA(NULL);
 
-    // Register window class
     WNDCLASSA wc = {};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -137,31 +108,21 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     RegisterClassA(&wc);
 
-    // Adjust rect to account for window frame
-    RECT rect = {0, 0, width, height};
+    RECT rect = { 0, 0, width, height };
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-    i32 windowWidth = rect.right - rect.left;
-    i32 windowHeight = rect.bottom - rect.top;
 
-    // Create window
     window = CreateWindowExA(
-        0,
-        CLASS_NAME,
-        name,
+        0, CLASS_NAME, name,
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
-        windowWidth, windowHeight,
-        NULL,
-        NULL,
-        hInstance,
-        NULL);
+        rect.right - rect.left, rect.bottom - rect.top,
+        nullptr, nullptr, hInstance, nullptr);
 
-    if (!window)
-        return nullptr;
+    if (!window) return nullptr;
 
     hdc = GetDC(window);
 
-    // Setup temporary legacy OpenGL context (needed to load wglCreateContextAttribsARB)
+    // Temporary legacy context
     PIXELFORMATDESCRIPTOR pfd = {};
     pfd.nSize = sizeof(pfd);
     pfd.nVersion = 1;
@@ -184,7 +145,6 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
         return nullptr;
     }
 
-    // Load wglCreateContextAttribsARB
     wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
     if (!wglCreateContextAttribsARB)
     {
@@ -192,12 +152,13 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
         return nullptr;
     }
 
-    // Create modern OpenGL context
     int attribs[] = {
         WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
         WGL_CONTEXT_MINOR_VERSION_ARB, 6,
         WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-        0};
+        WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB,
+        0
+    };
 
     modernContext = wglCreateContextAttribsARB(hdc, 0, attribs);
     if (!modernContext)
@@ -206,107 +167,78 @@ Window CreateWindowPlatform(const str &name, const i32 &width, const i32 &height
         return nullptr;
     }
 
-    // Switch to modern context
-    wglMakeCurrent(NULL, NULL);
+    // Switch contexts
+    wglMakeCurrent(nullptr, nullptr);
     wglDeleteContext(oldContext);
     oldContext = nullptr;
 
     wglMakeCurrent(hdc, modernContext);
 
-    // Show window
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+
     ShowWindow(window, SW_SHOW);
 
-    // Set custom title bar colors
+    // Safe: Windows 10+ only
     SetTitleBarColor(RGB(255, 255, 255), RGB(30, 30, 30));
 
-    // Set initial viewport
-    RECT clientRect;
-    GetClientRect(window, &clientRect);
-    glViewport(0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top);
+    RECT rc;
+    GetClientRect(window, &rc);
+    glViewport(0, 0, rc.right - rc.left, rc.bottom - rc.top);
 
     running = true;
     return window;
 }
 
 // ---------------- Event Handling ----------------
-void PollEvent(Event *event)
+void PollEvent(Event* event)
 {
-    glViewport(0, 0, input->screen.x, input->screen.y);
-
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     event->deltaTime = (float)(now.QuadPart - lastCounter.QuadPart) / frequency.QuadPart;
     lastCounter = now;
 
-    for (int i = 0; i < 256; i++)
-    {
-        input->keyPressed[i] = false;
-        input->keyReleased[i] = false;
-    }
-
+    for (int i = 0; i < 256; i++) { input->keyPressed[i] = input->keyReleased[i] = false; }
     input->charTyped = false;
-
-    for (int i = 0; i < 5; i++)
-    {
-        input->mousePressed[i] = false;
-        input->mouseReleased[i] = false;
-    }
-    input->prevMouseX = input->mouseX;
-    input->prevMouseY = input->mouseY;
+    for (int i = 0; i < 5; i++) { input->mousePressed[i] = input->mouseReleased[i] = false; }
     input->scrollY = 0;
 
+    input->prevMouseX = input->mouseX;
+    input->prevMouseY = input->mouseY;
+
     MSG msg;
-    while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
     {
         if (msg.message == WM_QUIT)
             running = false;
-
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-
         event->msg = msg;
     }
 }
 
-bool ShouldClose()
-{
-    return !running;
-}
+bool ShouldClose() { return !running; }
 
-// ---------------- Swap Buffers ----------------
-void SwapBuffersWindow()
-{
-    SwapBuffers(hdc);
-}
+void SwapBuffersWindow() { SwapBuffers(hdc); }
 
-// ---------------- Destroy Platform ----------------
 void DestroyPlatform()
 {
     running = false;
 
     if (modernContext)
     {
-        wglMakeCurrent(NULL, NULL);
+        wglMakeCurrent(nullptr, nullptr);
         wglDeleteContext(modernContext);
         modernContext = nullptr;
     }
 
-    if (hdc && window)
-    {
-        ReleaseDC(window, hdc);
-        hdc = nullptr;
-    }
-
-    if (window)
-    {
-        DestroyWindow(window);
-        window = nullptr;
-    }
+    if (hdc && window) { ReleaseDC(window, hdc); hdc = nullptr; }
+    if (window) { DestroyWindow(window); window = nullptr; }
 
     UnregisterClassA(CLASS_NAME, GetModuleHandleA(NULL));
 }
 
-// ---------------- Title Bar Color ----------------
 void SetTitleBarColor(COLORREF textColor, COLORREF backgroundColor)
 {
     DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &backgroundColor, sizeof(backgroundColor));

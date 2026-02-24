@@ -39,7 +39,7 @@ typedef Mat4 mat4;
 typedef Quat quat;
 
 template<typename T>
-using Array = std::vector<T>; 
+using array = std::vector<T>; 
 
 // ============================
 // Logging & Assert Macro

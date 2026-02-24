@@ -82,3 +82,10 @@ void SetUniform<bool>(u32 program, str name, bool value)
     u32 loc = glGetUniformLocation(program, name);
     glUniform1i(loc, value);
 }
+
+template <>
+void SetUniform<mat4>(u32 program, str name, mat4 value)
+{
+    u32 loc = glGetUniformLocation(program, name);
+    glUniformMatrix4fv(loc, 1, GL_FALSE, value.m); // Changed GL_TRUE to GL_FALSE
+}

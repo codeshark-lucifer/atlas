@@ -33,7 +33,6 @@ add_executable(app
     src/core/helper.cpp
     src/core/win32.cpp
     src/core/input.cpp
-    src/core/renderer.cpp
     src/core/shader.cpp
 )
 
