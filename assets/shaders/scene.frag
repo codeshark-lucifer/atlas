@@ -8,5 +8,8 @@ uniform sampler2D atlasTexture;
 
 void main()
 {
-    FragColor = Color * texture(atlasTexture, UV); // combine vertex color with texture
+    vec4 texColor = texture(atlasTexture, UV);
+    if (texColor.a < 0.1) // discard transparent pixels
+        discard;
+    FragColor = Color * texColor; // combine vertex color with texture
 }
