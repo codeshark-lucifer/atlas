@@ -1,6 +1,15 @@
-ECS:
-- Entity ( id, transform)
-- Component
-- System
+World
+ ├── Entities (IDs)
+ ├── Components (pure data)
+ └── Systems (logic)
 
-World: store ecs and process physics
+* Entity ( ID )
+- Transform
+
+* Component
+- virtual void Start()
+- virtual void Update(float deltaTime)
+
+* System
+- iterate 
+- matching combinations comps

@@ -10,7 +10,6 @@
 #include FT_FREETYPE_H
 
 #include <map>
-#include <string>
 #include <algorithm>
 
 struct Vertex

@@ -13,6 +13,7 @@
 #include <new>       // for placement new
 #include <utility>   // for std::forward
 #include <vector>
+#include <string>
 
 // ============================
 // Basic typedefs
